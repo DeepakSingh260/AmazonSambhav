@@ -4,7 +4,7 @@ import numpy as np
 from langchain.embeddings import OpenAIEmbeddings
 from openai import OpenAI
 from query_extract import parse_user_query
-client = OpenAI(api_key = "add_your_key_here")
+client = OpenAI(api_key = "api_key_here")
 
 # Load the FAISS index
 def load_faiss_index(index_path):
@@ -52,7 +52,7 @@ def fetch_context(indices, context_data):
     return contexts
 
 # Perform the query and return results
-def query_model(query, index, metadata, embedding_model, k=5):
+def query_model(query, index, metadata, embedding_model, k=5, context_data = ""):
     query_embedding = embed_query(query, embedding_model).reshape(1, -1)
     distances, indices = search_faiss_index(index, query_embedding, k)
     contexts = fetch_context(indices, context_data)
@@ -71,31 +71,32 @@ def query_model(query, index, metadata, embedding_model, k=5):
                 "citation": citation
             })
     return results
+def call_model(query):
+    # Paths to the index and metadata files
+    index_path = "vector_index.faiss"
+    metadata_path = "metadata.json"
 
-# Paths to the index and metadata files
-index_path = "vector_index.faiss"
-metadata_path = "metadata.json"
+    # Load the index and metadata
+    faiss_index = load_faiss_index(index_path)
+    metadata = load_metadata(metadata_path)
 
-# Load the index and metadata
-faiss_index = load_faiss_index(index_path)
-metadata = load_metadata(metadata_path)
+    # Initialize the embedding model
+    embedding_model = OpenAIEmbeddings(model="text-embedding-ada-002", openai_api_key = "api_key_here")
 
-# Initialize the embedding model
-embedding_model = OpenAIEmbeddings(model="text-embedding-ada-002", openai_api_key = "add_your_key_here")
+    # Input query
+    query_text = parse_user_query(query)
+    context_data_path = "formatted_scraped_data.json"
+    with open(context_data_path, 'r') as f:
+        context_data = [json.loads(line) for line in f]
+    # Perform the query
+    k = 1  # Number of nearest neighbors to retrieve
+    results = query_model(query_text, faiss_index, metadata, embedding_model, k, context_data)
 
-# Input query
-query_text = parse_user_query("can you give me Import duties of steel in India?")
-context_data_path = "formatted_scraped_data.json"
-with open(context_data_path, 'r') as f:
-    context_data = [json.loads(line) for line in f]
-# Perform the query
-k = 1  # Number of nearest neighbors to retrieve
-results = query_model(query_text, faiss_index, metadata, embedding_model, k)
-
-# Print the results
-print(f"Query: {query_text}")
-print("Results:")
-for result in results:
-    print(f"Answer: {result['answer']}")
-    print(f"Citation: {result['citation']}")
-    print(f"Distance: {result['distance']:.4f}\n")
+    # Print the results
+    print(f"Query: {query_text}")
+    print("Results:")
+    for result in results:
+        print(f"Answer: {result['answer']}")
+        print(f"Citation: {result['citation']}")
+        print(f"Distance: {result['distance']:.4f}\n")
+    return results[0]['answer'] , results[0]['citation']
